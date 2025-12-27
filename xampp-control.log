@@ -1,0 +1,53 @@
+14:35:17  [main] 	Initializing Control Panel
+14:35:17  [main] 	Windows Version:  Home  64-bit
+14:35:17  [main] 	XAMPP Version: 8.2.12
+14:35:17  [main] 	Control Panel Version: 3.3.0  [ Compiled: Apr 6th 2021 ]
+14:35:17  [main] 	You are not running with administrator rights! This will work for
+14:35:17  [main] 	most application stuff but whenever you do something with services
+14:35:17  [main] 	there will be a security dialogue or things will break! So think 
+14:35:17  [main] 	about running this application with administrator rights!
+14:35:17  [main] 	XAMPP Installation Directory: "c:\users\sai sushma\downloads\vaxforsure\"
+14:35:17  [main] 	WARNING: Your install directory contains spaces.  This may break programs/scripts
+14:35:17  [main] 	Checking for prerequisites
+14:35:18  [main] 	All prerequisites found
+14:35:18  [main] 	Initializing Modules
+14:35:18  [main] 	Enabling autostart for module "Apache"
+14:35:18  [main] 	Enabling autostart for module "MySQL"
+14:35:18  [main] 	Starting Check-Timer
+14:35:18  [main] 	Control Panel Ready
+14:35:19  [Apache] 	Autostart active: starting...
+14:35:19  [Apache] 	Attempting to start Apache app...
+14:35:19  [mysql] 	Autostart active: starting...
+14:35:19  [mysql] 	Attempting to start MySQL app...
+14:35:19  [Apache] 	Status change detected: running
+14:35:20  [Apache] 	Status change detected: stopped
+14:35:20  [Apache] 	Error: Apache shutdown unexpectedly.
+14:35:20  [Apache] 	This may be due to a blocked port, missing dependencies, 
+14:35:20  [Apache] 	improper privileges, a crash, or a shutdown by another method.
+14:35:20  [Apache] 	Press the Logs button to view error logs and check
+14:35:20  [Apache] 	the Windows Event Viewer for more clues
+14:35:20  [Apache] 	If you need more help, copy and post this
+14:35:20  [Apache] 	entire log window on the forums
+14:35:23  [Apache] 	Attempting to start Apache app...
+14:35:23  [Apache] 	Status change detected: running
+14:35:24  [Apache] 	Status change detected: stopped
+14:35:24  [Apache] 	Error: Apache shutdown unexpectedly.
+14:35:24  [Apache] 	This may be due to a blocked port, missing dependencies, 
+14:35:24  [Apache] 	improper privileges, a crash, or a shutdown by another method.
+14:35:24  [Apache] 	Press the Logs button to view error logs and check
+14:35:24  [Apache] 	the Windows Event Viewer for more clues
+14:35:24  [Apache] 	If you need more help, copy and post this
+14:35:24  [Apache] 	entire log window on the forums
+14:35:27  [mysql] 	Attempting to start MySQL app...
+14:35:27  [mysql] 	Status change detected: running
+14:35:29  [mysql] 	Status change detected: stopped
+14:35:29  [mysql] 	Error: MySQL shutdown unexpectedly.
+14:35:29  [mysql] 	This may be due to a blocked port, missing dependencies, 
+14:35:29  [mysql] 	improper privileges, a crash, or a shutdown by another method.
+14:35:29  [mysql] 	Press the Logs button to view error logs and check
+14:35:29  [mysql] 	the Windows Event Viewer for more clues
+14:35:29  [mysql] 	If you need more help, copy and post this
+14:35:29  [mysql] 	entire log window on the forums
+14:44:40  [main] 	Deinitializing Modules
+14:44:40  [main] 	Deinitializing Control Panel
+
