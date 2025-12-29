@@ -124,7 +124,6 @@ fun AppNavHost() {
 
         composable(Destinations.PROFILE_CONFIRMATION) {
             ProfileConfirmationScreen(
-                childName = "Child",
                 onGoToDashboard = {
                     navController.navigate(Destinations.DASHBOARD) {
                         popUpTo(Destinations.SPLASH) { inclusive = true }

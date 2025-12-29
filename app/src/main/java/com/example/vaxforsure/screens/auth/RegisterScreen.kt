@@ -1,5 +1,6 @@
 package com.example.vaxforsure.screens.onboarding
 
+import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector   // ✅ REQUIRED IMPORT
 import androidx.compose.ui.text.SpanStyle
@@ -24,6 +26,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.vaxforsure.utils.PreferenceManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun RegisterScreen(
@@ -31,6 +37,7 @@ fun RegisterScreen(
     onCreateAccount: () -> Unit,
     onSignIn: () -> Unit
 ) {
+    val context = LocalContext.current
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -38,6 +45,8 @@ fun RegisterScreen(
     var confirmPassword by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var showConfirmPassword by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -166,16 +175,65 @@ fun RegisterScreen(
 
         /* Create Account Button */
         Button(
-            onClick = onCreateAccount,
+            onClick = {
+                if (fullName.isBlank() || email.isBlank() || phone.isBlank() || 
+                    password.isBlank() || confirmPassword.isBlank()) {
+                    Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+                
+                if (password != confirmPassword) {
+                    Toast.makeText(context, "Passwords do not match", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+                
+                if (password.length < 6) {
+                    Toast.makeText(context, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+                
+                isLoading = true
+                
+                // Simulate registration (local only)
+                scope.launch {
+                    delay(1000) // Simulate network delay
+                    isLoading = false
+                    
+                    // Generate OTP locally
+                    val otpCode = (100000..999999).random().toString()
+                    
+                    // Save OTP data for verification screen
+                    PreferenceManager.saveOtpData(
+                        context,
+                        email.trim(),
+                        otpCode
+                    )
+                    
+                    Toast.makeText(
+                        context,
+                        "Registration successful! OTP: $otpCode",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    onCreateAccount()
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF4DB6AC)
-            )
+            ),
+            enabled = !isLoading
         ) {
-            Text("Create Account", fontSize = 16.sp)
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White
+                )
+            } else {
+                Text("Create Account", fontSize = 16.sp)
+            }
         }
 
         Spacer(modifier = Modifier.height(32.dp))

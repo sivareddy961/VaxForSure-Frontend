@@ -17,6 +17,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import androidx.navigation.NavController
 import com.example.vaxforsure.navigation.Destinations
+import androidx.compose.ui.platform.LocalContext
+import com.example.vaxforsure.utils.PreferenceManager
+import androidx.compose.runtime.*
+import com.example.vaxforsure.screens.vaccinedetails.vaccineData
 
 /* =========================================================
    DASHBOARD SCREEN
@@ -28,6 +32,13 @@ fun DashboardScreen(
     onScheduleClick: () -> Unit,   // existing
     navController: NavController   // ✅ ADDED ONLY
 ) {
+    val context = LocalContext.current
+    // Load user name from PreferenceManager
+    val userName by remember {
+        mutableStateOf(
+            PreferenceManager.getUserName(context).ifEmpty { profileName }
+        )
+    }
     Scaffold(
         bottomBar = {
             DashboardBottomNavigation(
@@ -43,7 +54,7 @@ fun DashboardScreen(
                 .background(Color(0xFFF5FAFA)),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            item { DashboardHeader(profileName, onNotificationsClick, navController) }
+            item { DashboardHeader(userName, onNotificationsClick, navController) }
             item { Spacer(Modifier.height(28.dp)) }
 
             item {
@@ -110,7 +121,7 @@ fun DashboardScreen(
    ========================================================= */
 @Composable
 fun DashboardHeader(
-    profileName: String,
+    userName: String,
     onNotificationsClick: () -> Unit,
     navController: NavController
 ) {
@@ -142,7 +153,7 @@ fun DashboardHeader(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = profileName.firstOrNull()?.toString() ?: "C",
+                        text = userName.firstOrNull()?.toString() ?: "C",
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
@@ -151,9 +162,9 @@ fun DashboardHeader(
                 Spacer(Modifier.width(12.dp))
 
                 Column {
-                    Text(profileName, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(userName, color = Color.White, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "10 months old",
+                        "Your child's schedule",
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 12.sp
                     )
@@ -177,7 +188,7 @@ fun DashboardHeader(
         Spacer(Modifier.height(20.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ProfileChip(profileName, navController)
+            ProfileChip(userName, navController)
         }
     }
 }
@@ -282,6 +293,49 @@ fun AgeGroupCard(group: ScheduleGroup, navController: NavController) {
 
 @Composable
 fun ScheduleItem(name: String, navController: NavController) {
+    // Get diseases prevented from vaccineData
+    val diseasesPrevented = remember(name) {
+        val vaccineName = when (name) {
+            "DTaP (1st)" -> "DTaP (1st dose)"
+            "DTaP (2nd)" -> "DTaP (2nd dose)"
+            "DTaP (3rd)" -> "DTaP (3rd dose)"
+            "IPV (1st)" -> "IPV (1st dose)"
+            "IPV (2nd)" -> "IPV (2nd dose)"
+            "IPV (3rd)" -> "IPV (3rd dose)"
+            "IPV (Final)" -> "IPV (Final dose)"
+            "Hepatitis B (2nd)" -> "Hepatitis B (2nd dose)"
+            "Hepatitis B (3rd)" -> "Hepatitis B (3rd dose)"
+            "Hib (1st)" -> "Hib (1st dose)"
+            "Hib (2nd)" -> "Hib (2nd dose)"
+            "Hib (3rd)" -> "Hib (3rd dose)"
+            "PCV (1st)" -> "PCV (1st dose)"
+            "PCV (2nd)" -> "PCV (2nd dose)"
+            "PCV (3rd)" -> "PCV (3rd dose)"
+            "PCV Booster" -> "PCV (Booster)"
+            "Rotavirus" -> "Rotavirus (1st dose)"
+            "Rotavirus (2nd)" -> "Rotavirus (2nd dose)"
+            "Rotavirus (3rd)" -> "Rotavirus (3rd dose)"
+            "MMR (1st)" -> "MMR (1st dose)"
+            "MMR (2nd)" -> "MMR (2nd dose)"
+            "MMR (3rd)" -> "MMR (3rd dose)"
+            "Typhoid" -> "Typhoid Conjugate Vaccine"
+            "Varicella (1st)" -> "Varicella (1st dose)"
+            "Varicella (2nd)" -> "Varicella (2nd dose)"
+            "Hepatitis A" -> "Hepatitis A (1st dose)"
+            "HPV (1st)" -> "HPV (1st dose)"
+            "HPV (2nd)" -> "HPV (2nd dose)"
+            "Meningococcal" -> "Meningococcal Vaccine"
+            "Meningococcal vaccine" -> "Meningococcal Vaccine"
+            else -> name
+        }
+        vaccineData[vaccineName]?.diseasesPrevented 
+            ?: vaccineData.values.firstOrNull { 
+                it.name.contains(name.split(" ")[0], ignoreCase = true) ||
+                name.contains(it.name.split(" ")[0], ignoreCase = true)
+            }?.diseasesPrevented
+            ?: "Vaccination pending"
+    }
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -330,7 +384,13 @@ fun ScheduleItem(name: String, navController: NavController) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(name, fontWeight = FontWeight.Medium)
-            Text("Pending", fontSize = 12.sp, color = Color.Gray)
+            Text(
+                diseasesPrevented,
+                fontSize = 12.sp,
+                color = Color.Gray,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         StatusBadge()
     }

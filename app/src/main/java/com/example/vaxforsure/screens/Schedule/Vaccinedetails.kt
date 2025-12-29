@@ -701,25 +701,25 @@ fun VaccineDetailsScreen(
     Scaffold(
         containerColor = Color(0xFFF5FAFA)
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
                             Color(0xFF00BFA5),
                             Color(0xFF00897B)
-                        )
                     )
                 )
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-            ) {
 
-                /* ---------------- Top App Bar ---------------- */
+            /* ---------------- Top App Bar ---------------- */
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -732,7 +732,7 @@ fun VaccineDetailsScreen(
                             .background(Color.White.copy(alpha = 0.2f), CircleShape)
                             .clickable {
                                 navController?.popBackStack()
-                            },
+                },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -755,51 +755,51 @@ fun VaccineDetailsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                /* ---------------- Vaccine Card ---------------- */
+            /* ---------------- Vaccine Card ---------------- */
                 VaccineHeaderCard(vaccineInfo)
 
-                Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-                /* ---------------- Content Section ---------------- */
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
+            /* ---------------- Content Section ---------------- */
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
                             color = Color(0xFFF5FAFA),
-                            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-                        )
-                        .padding(16.dp)
-                ) {
+                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                    )
+                    .padding(16.dp)
+            ) {
 
-                    InfoCard(
-                        icon = Icons.Default.Shield,
+                InfoCard(
+                    icon = Icons.Default.Shield,
                         iconBg = Color(0xFFE0F2F1),
                         iconTint = Color(0xFF00BFA5),
-                        title = "Purpose",
+                    title = "Purpose",
                         description = vaccineInfo.purpose
-                    )
+                )
 
-                    InfoCard(
-                        icon = Icons.Default.Warning,
+                InfoCard(
+                    icon = Icons.Default.Warning,
                         iconBg = Color(0xFFFFEBEE),
                         iconTint = Color(0xFFE91E63),
-                        title = "Diseases Prevented",
+                    title = "Diseases Prevented",
                         description = vaccineInfo.diseasesPrevented
-                    )
+                )
 
-                    InfoCard(
+                InfoCard(
                         icon = Icons.Default.Medication,
                         iconBg = Color(0xFFE3F2FD),
                         iconTint = Color(0xFF2196F3),
-                        title = "Dosage & Administration",
+                    title = "Dosage & Administration",
                         description = vaccineInfo.dosage
-                    )
+                )
 
-                    InfoCard(
-                        icon = Icons.Default.Description,
+                InfoCard(
+                    icon = Icons.Default.Description,
                         iconBg = Color(0xFFE8F5E9),
                         iconTint = Color(0xFF4CAF50),
-                        title = "Official Guidelines",
+                    title = "Official Guidelines",
                         description = vaccineInfo.guidelines
                     )
 
@@ -826,7 +826,7 @@ fun VaccineDetailsScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
@@ -860,56 +860,56 @@ fun VaccineHeaderCard(vaccineInfo: VaccineInfo) {
                         )
                     ),
                     shape = RoundedCornerShape(20.dp)
-                )
+        )
                 .padding(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(Color.White, CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(Color.White, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarToday,
-                        contentDescription = null,
+                Icon(
+                    imageVector = Icons.Default.CalendarToday,
+                    contentDescription = null,
                         tint = Color(0xFF00BFA5),
                         modifier = Modifier.size(24.dp)
-                    )
-                }
+                )
+            }
 
-                Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
                         text = vaccineInfo.name,
                         fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
 
-                    Text(
+                Text(
                         text = vaccineInfo.fullName,
-                        fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.9f)
+                    fontSize = 13.sp,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row {
+                    TagChip(
+                            text = vaccineInfo.ageGroup,
+                        bgColor = Color.White.copy(alpha = 0.25f)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                    Row {
-                        TagChip(
-                            text = vaccineInfo.ageGroup,
-                            bgColor = Color.White.copy(alpha = 0.25f)
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        TagChip(
+                    TagChip(
                             text = "Pending",
                             bgColor = Color(0xFFFF9800)
-                        )
+                    )
                     }
                 }
             }

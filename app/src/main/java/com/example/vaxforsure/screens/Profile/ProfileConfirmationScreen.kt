@@ -19,13 +19,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 
 @Composable
 fun ProfileConfirmationScreen(
-    childName: String,
     onGoToDashboard: () -> Unit,
     onAddAnotherChild: () -> Unit
 ) {
+    val context = LocalContext.current
+    var childName by remember { mutableStateOf("Child") }
+    
+    LaunchedEffect(Unit) {
+        val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
+        childName = pref.getString("name", "Child") ?: "Child"
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()

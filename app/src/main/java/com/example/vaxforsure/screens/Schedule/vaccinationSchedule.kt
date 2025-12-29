@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.vaxforsure.navigation.Destinations
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 
 /* =========================================================
    DATA MODELS
@@ -116,10 +118,21 @@ private val vaccines = listOf(
 @Composable
 fun VaccinationScheduleScreen(
     navController: NavController,
-    childName: String = "gfds"
+    childName: String? = null
 ) {
+    val context = LocalContext.current
     var selectedAgeGroup by remember { mutableStateOf("birth") }
     val filteredVaccines = vaccines.filter { it.ageGroupId == selectedAgeGroup }
+    
+    // Load child name from SharedPreferences if not provided
+    val displayChildName = remember(childName) {
+        if (childName != null) {
+            childName
+        } else {
+            val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
+            pref.getString("name", "Child") ?: "Child"
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -179,7 +192,7 @@ fun VaccinationScheduleScreen(
                             fontSize = 12.sp
                         )
                         Text(
-                            childName,
+                            displayChildName,
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold

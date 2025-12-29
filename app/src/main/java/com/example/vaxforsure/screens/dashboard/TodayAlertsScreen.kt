@@ -20,9 +20,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.vaxforsure.navigation.Destinations
 
 @Composable
 fun TodayAlertsScreen(navController: NavController) {
+    // Vaccine name from notification
+    val vaccineName = "DTaP (2nd dose)"
 
     Column(
         modifier = Modifier
@@ -130,7 +133,7 @@ fun TodayAlertsScreen(navController: NavController) {
                 InfoRow(
                     icon = Icons.Default.Vaccines,
                     label = "Vaccine",
-                    value = "DTaP (2nd dose)"
+                    value = vaccineName
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -155,7 +158,9 @@ fun TodayAlertsScreen(navController: NavController) {
         ) {
 
             Button(
-                onClick = { /* View Vaccine Details */ },
+                onClick = { 
+                    navController.navigate("${Destinations.VACCINE_DETAILS}/$vaccineName")
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -172,7 +177,9 @@ fun TodayAlertsScreen(navController: NavController) {
             }
 
             Button(
-                onClick = { /* Go to Schedule */ },
+                onClick = { 
+                    navController.navigate(Destinations.VACCINE_SCHEDULE)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),

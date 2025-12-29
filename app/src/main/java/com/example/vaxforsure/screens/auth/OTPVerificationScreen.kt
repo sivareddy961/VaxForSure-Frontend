@@ -1,5 +1,6 @@
 package com.example.vaxforsure.screens.onboarding
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -24,14 +26,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.vaxforsure.utils.PreferenceManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun OTPVerificationScreen(
     onBack: () -> Unit,
     onVerified: () -> Unit
 ) {
+    val context = LocalContext.current
     val otpLength = 6
     val otp = remember { mutableStateListOf("", "", "", "", "", "") }
     val focusRequesters = List(otpLength) { FocusRequester() }
@@ -40,6 +45,9 @@ fun OTPVerificationScreen(
     var isVerifying by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
+    
+    // Get saved OTP email
+    val otpEmail = remember { PreferenceManager.getOtpEmail(context) }
 
     /* Timer */
     LaunchedEffect(timer) {
@@ -50,10 +58,30 @@ fun OTPVerificationScreen(
     }
 
     fun handleVerify() {
+        val otpCode = otp.joinToString("")
+        if (otpCode.length != 6) {
+            Toast.makeText(context, "Please enter complete OTP", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        isVerifying = true
+        
+        // Simulate OTP verification (local only)
         scope.launch {
-            isVerifying = true
-            delay(1500)
-            onVerified()
+            delay(1000) // Simulate network delay
+            
+            // Get saved OTP from SharedPreferences
+            val savedOtp = PreferenceManager.getOtpCode(context)
+            
+            if (otpCode == savedOtp) {
+                PreferenceManager.clearOtpData(context)
+                Toast.makeText(context, "OTP verified successfully!", Toast.LENGTH_SHORT).show()
+                onVerified()
+            } else {
+                Toast.makeText(context, "Invalid OTP", Toast.LENGTH_SHORT).show()
+            }
+            
+            isVerifying = false
         }
     }
 

@@ -1,6 +1,7 @@
 package com.example.vaxforsure.screens.onboarding
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.vaxforsure.utils.PreferenceManager
+import com.example.vaxforsure.utils.ChildManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun AddChildProfileScreen(
@@ -32,16 +38,56 @@ fun AddChildProfileScreen(
     var childName by remember { mutableStateOf("") }
     var dob by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    
+    val userId = PreferenceManager.getUserId(context)
 
     fun saveAndContinue() {
-        val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
-        pref.edit()
-            .putString("name", childName)
-            .putString("dob", dob)
-            .putString("gender", gender)
-            .apply()
-
-        onNext()
+        if (childName.isBlank() || dob.isBlank() || gender.isBlank()) {
+            Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        if (userId == 0) {
+            Toast.makeText(context, "Please login first", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        isLoading = true
+        
+        // Convert date format if needed (dd-mm-yyyy to yyyy-mm-dd)
+        val dateParts = dob.split("-")
+        val formattedDob = if (dateParts.size == 3) {
+            "${dateParts[2]}-${dateParts[1]}-${dateParts[0]}"
+        } else {
+            dob
+        }
+        
+        // Simulate adding child (local only)
+        scope.launch {
+            delay(1000) // Simulate network delay
+            isLoading = false
+            
+            // Generate new child ID
+            val existingChildren = ChildManager.getAllChildren(context)
+            val newChildId = (existingChildren.maxOfOrNull { it.id } ?: 0) + 1
+            
+            // Save to temp SharedPreferences for next screen
+            val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
+            pref.edit()
+                .putString("name", childName)
+                .putString("dob", dob)
+                .putString("gender", gender)
+                .putInt("child_id", newChildId)
+                .remove("birthWeight") // Clear previous health details
+                .remove("birthHeight")
+                .remove("bloodGroup")
+                .apply()
+            
+            Toast.makeText(context, "Child profile added!", Toast.LENGTH_SHORT).show()
+            onNext()
+        }
     }
 
     Column(
@@ -169,12 +215,19 @@ fun AddChildProfileScreen(
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
             ),
-            enabled = childName.isNotBlank() && dob.isNotBlank() && gender.isNotBlank()
+            enabled = childName.isNotBlank() && dob.isNotBlank() && gender.isNotBlank() && !isLoading
         ) {
-            Text(
-                text = "Continue to Health Details",
-                fontSize = 16.sp
-            )
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Text(
+                    text = "Continue to Health Details",
+                    fontSize = 16.sp
+                )
+            }
         }
     }
 }

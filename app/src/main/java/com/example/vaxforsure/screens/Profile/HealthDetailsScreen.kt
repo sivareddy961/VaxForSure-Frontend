@@ -1,5 +1,7 @@
 package com.example.vaxforsure.screens.onboarding
 
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,10 +11,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.vaxforsure.utils.ChildManager
+import com.example.vaxforsure.screens.profile.Child
+import com.example.vaxforsure.utils.PreferenceManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -21,10 +30,22 @@ fun HealthDetailsScreen(
     onSkip: () -> Unit,
     onSubmit: () -> Unit
 ) {
-    var weight by remember { mutableStateOf("3.5") }
-    var height by remember { mutableStateOf("50") }
+    val context = LocalContext.current
+    var weight by remember { mutableStateOf("") }
+    var height by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
     var bloodGroup by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    
+    var childName by remember { mutableStateOf("") }
+    var childId by remember { mutableStateOf(0) }
+    
+    LaunchedEffect(Unit) {
+        val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
+        childName = pref.getString("name", "") ?: ""
+        childId = pref.getInt("child_id", 0)
+    }
 
     val bloodGroups = listOf(
         "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"
@@ -54,7 +75,32 @@ fun HealthDetailsScreen(
                     modifier = Modifier.weight(1f)
                 )
 
-                TextButton(onClick = onSkip) {
+                TextButton(onClick = {
+                    // Save child even when skipping health details
+                    val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
+                    val childName = pref.getString("name", "") ?: ""
+                    val childDob = pref.getString("dob", "") ?: ""
+                    val childGender = pref.getString("gender", "") ?: ""
+                    val userId = PreferenceManager.getUserId(context)
+                    
+                    if (childName.isNotEmpty()) {
+                        val child = Child(
+                            id = pref.getInt("child_id", 0).takeIf { it > 0 } ?: (ChildManager.getAllChildren(context).maxOfOrNull { it.id } ?: 0) + 1,
+                            user_id = userId,
+                            name = childName,
+                            date_of_birth = childDob,
+                            gender = childGender,
+                            birth_weight = null,
+                            birth_height = null,
+                            blood_group = null,
+                            created_at = System.currentTimeMillis().toString(),
+                            updated_at = System.currentTimeMillis().toString()
+                        )
+                        
+                        ChildManager.saveChild(context, child)
+                    }
+                    onSkip()
+                }) {
                     Text(
                         text = "Skip",
                         color = Color(0xFF4FB6A5)
@@ -173,21 +219,80 @@ fun HealthDetailsScreen(
 
             /* ---------------- Complete Profile Button ---------------- */
             Button(
-                onClick = onSubmit,
+                onClick = {
+                    if (childName.isBlank()) {
+                        Toast.makeText(context, "Child information missing", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    
+                    isLoading = true
+                    
+                    // Simulate saving health details (local only)
+                    scope.launch {
+                        delay(1000) // Simulate network delay
+                        isLoading = false
+                        
+                        // Get child data from temp SharedPreferences
+                        val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
+                        val childName = pref.getString("name", "") ?: ""
+                        val childDob = pref.getString("dob", "") ?: ""
+                        val childGender = pref.getString("gender", "") ?: ""
+                        val userId = PreferenceManager.getUserId(context)
+                        
+                        // Save health details to temp SharedPreferences
+                        pref.edit()
+                            .putString("birthWeight", weight)
+                            .putString("birthHeight", height)
+                            .putString("bloodGroup", bloodGroup)
+                            .apply()
+                        
+                        // Save complete child to children list
+                        if (childName.isNotEmpty()) {
+                            val birthWeightDouble = weight.toDoubleOrNull()
+                            val birthHeightDouble = height.toDoubleOrNull()
+                            
+                            val child = Child(
+                                id = pref.getInt("child_id", 0).takeIf { it > 0 } ?: (ChildManager.getAllChildren(context).maxOfOrNull { it.id } ?: 0) + 1,
+                                user_id = userId,
+                                name = childName,
+                                date_of_birth = childDob,
+                                gender = childGender,
+                                birth_weight = birthWeightDouble,
+                                birth_height = birthHeightDouble,
+                                blood_group = bloodGroup.takeIf { it.isNotEmpty() },
+                                created_at = System.currentTimeMillis().toString(),
+                                updated_at = System.currentTimeMillis().toString()
+                            )
+                            
+                            ChildManager.saveChild(context, child)
+                        }
+                        
+                        Toast.makeText(context, "Health details saved!", Toast.LENGTH_SHORT).show()
+                        onSubmit()
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF4FB6A5)
-                )
+                ),
+                enabled = !isLoading
             ) {
-                Text(
-                    text = "Complete Profile",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White
+                    )
+                } else {
+                    Text(
+                        text = "Complete Profile",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
             }
         }
     }

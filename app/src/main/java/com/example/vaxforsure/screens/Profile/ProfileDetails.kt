@@ -1,9 +1,12 @@
 package com.example.vaxforsure.screens.profile
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,6 +26,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.vaxforsure.utils.PreferenceManager
+import com.example.vaxforsure.utils.ChildManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+/* -------------------- DATA MODELS -------------------- */
+data class Child(
+    val id: Int,
+    val user_id: Int,
+    val name: String,
+    val date_of_birth: String,
+    val gender: String,
+    val birth_weight: Double?,
+    val birth_height: Double?,
+    val blood_group: String?,
+    val created_at: String,
+    val updated_at: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,15 +51,52 @@ fun ProfileDetailsScreen(
     navController: NavController? = null
 ) {
     val context = LocalContext.current
-    var childName by remember { mutableStateOf("") }
-    var childDob by remember { mutableStateOf("") }
-    var childGender by remember { mutableStateOf("") }
+    var children by remember { mutableStateOf<List<Child>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val userId = PreferenceManager.getUserId(context)
 
+    // Function to load children
+    fun loadChildren() {
+        // Load all children from ChildManager
+        children = ChildManager.getAllChildren(context)
+        
+        // If no children found, check temp_child for backward compatibility
+        if (children.isEmpty()) {
+            val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
+            val childName = pref.getString("name", "")
+            val childDob = pref.getString("dob", "")
+            val childGender = pref.getString("gender", "")
+            
+            if (!childName.isNullOrEmpty()) {
+                // Migrate old single child to new system
+                val birthWeight = pref.getString("birthWeight", "")?.toDoubleOrNull()
+                val birthHeight = pref.getString("birthHeight", "")?.toDoubleOrNull()
+                val bloodGroup = pref.getString("bloodGroup", "")
+                
+                val child = Child(
+                    id = 1,
+                    user_id = userId,
+                    name = childName,
+                    date_of_birth = childDob ?: "",
+                    gender = childGender ?: "",
+                    birth_weight = birthWeight,
+                    birth_height = birthHeight,
+                    blood_group = bloodGroup?.takeIf { it.isNotEmpty() },
+                    created_at = System.currentTimeMillis().toString(),
+                    updated_at = System.currentTimeMillis().toString()
+                )
+                
+                ChildManager.saveChild(context, child)
+                children = listOf(child)
+            }
+        }
+    }
+
+    // Reload children whenever screen is displayed
     LaunchedEffect(Unit) {
-        val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
-        childName = pref.getString("name", "") ?: ""
-        childDob = pref.getString("dob", "") ?: ""
-        childGender = pref.getString("gender", "") ?: ""
+        delay(500) // Simulate loading
+        loadChildren()
+        isLoading = false
     }
 
     val backgroundColor = Color(0xFFF7FBFB)
@@ -85,14 +143,48 @@ fun ProfileDetailsScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-
-            if (childName.isNotEmpty()) {
-                ChildProfileCard(
-                    name = childName,
-                    age = childDob.ifEmpty { "22y 2m" },
-                    gender = childGender.ifEmpty { "Male" },
-                    navController = navController
-                )
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (children.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "No children added yet",
+                            fontSize = 16.sp,
+                            color = Color.Gray
+                        )
+                        Text(
+                            text = "Click + to add a child profile",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(children) { child ->
+                        ChildProfileCard(
+                            name = child.name,
+                            age = child.date_of_birth,
+                            gender = child.gender,
+                            navController = navController,
+                            childId = child.id
+                        )
+                    }
+                }
             }
         }
     }
@@ -103,7 +195,8 @@ fun ChildProfileCard(
     name: String,
     age: String,
     gender: String,
-    navController: NavController? = null
+    navController: NavController? = null,
+    childId: Int = 0
 ) {
 
     val primaryGreen = Color(0xFF4DB6AC)
@@ -184,7 +277,7 @@ fun ChildProfileCard(
 
                 // Edit icon
                 IconButton(onClick = {
-                    navController?.navigate(com.example.vaxforsure.navigation.Destinations.EDIT_PROFILE)
+                    navController?.navigate("${com.example.vaxforsure.navigation.Destinations.EDIT_PROFILE}/$name")
                 }) {
                     Icon(
                         imageVector = Icons.Default.Edit,
@@ -198,7 +291,9 @@ fun ChildProfileCard(
 
             // View Profile Button
             Button(
-                onClick = { },
+                onClick = { 
+                    navController?.navigate(com.example.vaxforsure.navigation.Destinations.EDIT_PROFILE)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
