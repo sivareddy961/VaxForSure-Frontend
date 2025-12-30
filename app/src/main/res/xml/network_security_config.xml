@@ -8,7 +8,12 @@
     </domain-config>
     
     <!-- Allow HTTP for local network IPs (for physical device testing on port 8080) -->
-    <!-- This allows any IP address - update for production -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.148.199.69</domain>
+        <domain includeSubdomains="true">10.148.199</domain>
+    </domain-config>
+    
+    <!-- Allow HTTP for all local network (for development only) -->
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />

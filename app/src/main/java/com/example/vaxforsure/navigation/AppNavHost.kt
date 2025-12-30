@@ -95,7 +95,7 @@ fun AppNavHost() {
         composable(Destinations.REGISTER) {
             RegisterScreen(
                 onBack = { navController.popBackStack() },
-                onCreateAccount = { navController.navigate(Destinations.OTP) },
+                onCreateAccount = { navController.navigate(Destinations.ADD_CHILD) },
                 onSignIn = { navController.navigate(Destinations.LOGIN) }
             )
         }
@@ -103,7 +103,8 @@ fun AppNavHost() {
         composable(Destinations.OTP) {
             OTPVerificationScreen(
                 onBack = { navController.popBackStack() },
-                onVerified = { navController.navigate(Destinations.ADD_CHILD) }
+                onVerified = { navController.navigate(Destinations.ADD_CHILD) },
+                onPasswordResetVerified = { navController.navigate(Destinations.LOGIN) }
             )
         }
 
@@ -139,7 +140,7 @@ fun AppNavHost() {
             ForgotPasswordScreen(
                 onBack = { navController.popBackStack() },
                 onResetConfirmation = {
-                    navController.navigate(Destinations.RESET_CONFIRMATION)
+                    navController.navigate(Destinations.OTP)
                 }
             )
         }

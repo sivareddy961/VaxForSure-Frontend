@@ -13,11 +13,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import com.example.vaxforsure.utils.PreferenceManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -26,14 +29,39 @@ fun ForgotPasswordScreen(
     onBack: () -> Unit,
     onResetConfirmation: () -> Unit
 ) {
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun handleSubmit() {
+        if (email.isBlank()) {
+            Toast.makeText(context, "Please enter your email", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         scope.launch {
             isLoading = true
-            delay(1500) // mock reset
+            delay(1500) // Simulate network delay
+            
+            // Generate OTP locally
+            val otpCode = (100000..999999).random().toString()
+            
+            // Save OTP data for verification screen (password reset type)
+            PreferenceManager.saveOtpData(
+                context,
+                email.trim(),
+                otpCode,
+                "password_reset"
+            )
+            
+            Toast.makeText(
+                context,
+                "Verification code sent! OTP: $otpCode",
+                Toast.LENGTH_LONG
+            ).show()
+            
+            isLoading = false
             onResetConfirmation()
         }
     }
@@ -93,7 +121,7 @@ fun ForgotPasswordScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Enter your registered email address and we’ll send you a link to reset your password.",
+                text = "Enter your registered email address and we'll send you a verification code to reset your password.",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             )
@@ -149,7 +177,7 @@ fun ForgotPasswordScreen(
                     )
                 } else {
                     Text(
-                        text = "Send Reset Link",
+                        text = "Send Verification Code",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )

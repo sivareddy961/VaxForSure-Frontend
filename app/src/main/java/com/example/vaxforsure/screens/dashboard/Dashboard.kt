@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.vaxforsure.utils.PreferenceManager
 import androidx.compose.runtime.*
 import com.example.vaxforsure.screens.vaccinedetails.vaccineData
+import java.text.SimpleDateFormat
+import java.util.*
 
 /* =========================================================
    DASHBOARD SCREEN
@@ -55,7 +57,12 @@ fun DashboardScreen(
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             item { DashboardHeader(userName, onNotificationsClick, navController) }
-            item { Spacer(Modifier.height(28.dp)) }
+            item { Spacer(Modifier.height(16.dp)) }
+            
+            // Medical Calendar Component
+            item { MedicalCalendar() }
+            
+            item { Spacer(Modifier.height(24.dp)) }
 
             item {
                 SectionHeader(

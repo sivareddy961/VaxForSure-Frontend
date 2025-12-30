@@ -24,9 +24,14 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vaxforsure.utils.PreferenceManager
+import com.example.vaxforsure.api.RetrofitClient
+import com.example.vaxforsure.models.LoginRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 @Composable
 fun LoginScreen(
@@ -145,25 +150,102 @@ fun LoginScreen(
                 
                 isLoading = true
                 
-                // Simulate login (local only)
-                scope.launch {
-                    delay(1000) // Simulate network delay
-                    isLoading = false
-                    
-                    // Save user session locally
-                    PreferenceManager.saveUserSession(
-                        context,
-                        1,
-                        "User",
-                        email.trim(),
-                        "",
-                        "",
-                        1
-                    )
-                    
-                    Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
-                    onLogin()
-                }
+                // Create login request
+                val loginRequest = LoginRequest(
+                    email = email.trim(),
+                    password = password
+                )
+                
+                // Call login API
+                RetrofitClient.apiService.login(loginRequest)
+                    .enqueue(object : Callback<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>> {
+                        override fun onResponse(
+                            call: Call<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>>,
+                            response: Response<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>>
+                        ) {
+                            isLoading = false
+                            
+                            if (response.isSuccessful && response.body() != null) {
+                                val apiResponse = response.body()!!
+                                
+                                if (apiResponse.success && apiResponse.data != null) {
+                                    val user = apiResponse.data.user
+                                    
+                                    // Save user session locally
+                                    PreferenceManager.saveUserSession(
+                                        context,
+                                        user.id,
+                                        user.fullName,
+                                        user.email,
+                                        user.phone,
+                                        "",
+                                        user.emailVerified
+                                    )
+                                    
+                                    Toast.makeText(context, apiResponse.message, Toast.LENGTH_SHORT).show()
+                                    onLogin()
+                                } else {
+                                    Toast.makeText(context, apiResponse.message, Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                // Try to parse error message
+                                val errorMessage = try {
+                                    response.errorBody()?.string() ?: "Login failed. Please try again."
+                                } catch (e: Exception) {
+                                    "Login failed. Please try again."
+                                }
+                                Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        
+                        override fun onFailure(
+                            call: Call<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>>,
+                            t: Throwable
+                        ) {
+                            isLoading = false
+                            
+                            // Detailed error handling
+                            val errorMessage = when {
+                                t.message?.contains("Failed to connect", ignoreCase = true) == true -> {
+                                    "❌ Cannot connect to backend server!\n\n" +
+                                    "Please check:\n" +
+                                    "1. XAMPP Apache is running (GREEN)\n" +
+                                    "2. Test in browser: http://localhost:8080/vaxforsure/api/auth/login.php\n" +
+                                    "3. Backend URL: ${com.example.vaxforsure.api.RetrofitClient.getBaseUrl()}\n\n" +
+                                    "Error: ${t.message}"
+                                }
+                                t.message?.contains("timeout", ignoreCase = true) == true -> {
+                                    "⏱️ Connection timeout!\n\n" +
+                                    "Please check:\n" +
+                                    "1. XAMPP Apache is running\n" +
+                                    "2. Your internet connection\n" +
+                                    "3. Firewall settings"
+                                }
+                                t.message?.contains("Unable to resolve host", ignoreCase = true) == true -> {
+                                    "🌐 Cannot resolve server address!\n\n" +
+                                    "For Emulator: Use 10.0.2.2\n" +
+                                    "For Physical Device: Use your computer's IP\n" +
+                                    "Current URL: ${com.example.vaxforsure.api.RetrofitClient.getBaseUrl()}"
+                                }
+                                t.message?.contains("Connection refused", ignoreCase = true) == true -> {
+                                    "🚫 Connection refused!\n\n" +
+                                    "XAMPP Apache is not running.\n" +
+                                    "Please start Apache in XAMPP Control Panel."
+                                }
+                                else -> {
+                                    "❌ Network Error\n\n" +
+                                    "Message: ${t.message ?: "Unknown error"}\n" +
+                                    "URL: ${com.example.vaxforsure.api.RetrofitClient.getBaseUrl()}"
+                                }
+                            }
+                            
+                            Toast.makeText(
+                                context,
+                                errorMessage,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    })
             },
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(14.dp),

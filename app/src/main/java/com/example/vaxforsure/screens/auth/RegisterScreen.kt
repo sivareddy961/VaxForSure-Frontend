@@ -27,9 +27,15 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vaxforsure.utils.PreferenceManager
+import com.example.vaxforsure.api.RetrofitClient
+import com.example.vaxforsure.models.RegisterRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import org.json.JSONObject
 
 @Composable
 fun RegisterScreen(
@@ -194,28 +200,146 @@ fun RegisterScreen(
                 
                 isLoading = true
                 
-                // Simulate registration (local only)
-                scope.launch {
-                    delay(1000) // Simulate network delay
-                    isLoading = false
-                    
-                    // Generate OTP locally
-                    val otpCode = (100000..999999).random().toString()
-                    
-                    // Save OTP data for verification screen
-                    PreferenceManager.saveOtpData(
-                        context,
-                        email.trim(),
-                        otpCode
-                    )
-                    
-                    Toast.makeText(
-                        context,
-                        "Registration successful! OTP: $otpCode",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    onCreateAccount()
-                }
+                // Create registration request
+                val registerRequest = RegisterRequest(
+                    fullName = fullName.trim(),
+                    email = email.trim(),
+                    phone = phone.trim(),
+                    password = password
+                )
+                
+                // Call registration API
+                RetrofitClient.apiService.register(registerRequest)
+                    .enqueue(object : Callback<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>> {
+                        override fun onResponse(
+                            call: Call<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>>,
+                            response: Response<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>>
+                        ) {
+                            isLoading = false
+                            
+                            if (response.isSuccessful && response.body() != null) {
+                                val apiResponse = response.body()!!
+                                
+                                if (apiResponse.success && apiResponse.data != null) {
+                                    val user = apiResponse.data.user
+                                    
+                                    // Save user session locally
+                                    PreferenceManager.saveUserSession(
+                                        context,
+                                        user.id,
+                                        user.fullName,
+                                        user.email,
+                                        user.phone,
+                                        "",
+                                        user.emailVerified
+                                    )
+                                    
+                                    Toast.makeText(
+                                        context,
+                                        apiResponse.message,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    onCreateAccount()
+                                } else {
+                                    // Clean error message from API
+                                    val cleanMessage = apiResponse.message
+                                        .replace(Regex("<[^>]*>"), "")
+                                        .replace("<br/>", " ")
+                                        .replace("<br>", " ")
+                                        .trim()
+                                    
+                                    Toast.makeText(
+                                        context,
+                                        cleanMessage.ifEmpty { "Registration failed. Please try again." },
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            } else {
+                                // Try to parse error message from error body
+                                val errorMessage = try {
+                                    val errorBody = response.errorBody()?.string() ?: ""
+                                    
+                                    // Try to parse as JSON first
+                                    try {
+                                        val jsonObject = org.json.JSONObject(errorBody)
+                                        val message = jsonObject.optString("message", "")
+                                        message.replace(Regex("<[^>]*>"), "")
+                                            .replace("<br/>", " ")
+                                            .replace("<br>", " ")
+                                            .trim()
+                                    } catch (e: org.json.JSONException) {
+                                        // If not JSON, clean HTML tags
+                                        errorBody
+                                            .replace(Regex("<[^>]*>"), "")
+                                            .replace("<br/>", " ")
+                                            .replace("<br>", " ")
+                                            .replace("&nbsp;", " ")
+                                            .trim()
+                                    }
+                                } catch (e: Exception) {
+                                    "Registration failed. Please try again."
+                                }
+                                
+                                Toast.makeText(
+                                    context,
+                                    errorMessage.ifEmpty { "Registration failed. Please try again." },
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                        
+                        override fun onFailure(
+                            call: Call<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>>,
+                            t: Throwable
+                        ) {
+                            isLoading = false
+                            
+                            // Detailed error handling with specific solutions
+                            val errorMessage = when {
+                                t.message?.contains("Failed to connect", ignoreCase = true) == true -> {
+                                    "Cannot connect to backend server!\n\n" +
+                                    "Please check:\n" +
+                                    "1. XAMPP Apache is running (GREEN)\n" +
+                                    "2. Device and computer on SAME WiFi\n" +
+                                    "3. Test in browser: http://10.148.199.69:8080/vaxforsure/api/auth/login.php\n" +
+                                    "4. Check Windows Firewall settings"
+                                }
+                                t.message?.contains("timeout", ignoreCase = true) == true -> {
+                                    "⏱️ Connection timeout!\n\n" +
+                                    "Check:\n" +
+                                    "1. XAMPP Apache running\n" +
+                                    "2. Same WiFi network\n" +
+                                    "3. Firewall not blocking"
+                                }
+                                t.message?.contains("Unable to resolve host", ignoreCase = true) == true -> {
+                                    "🌐 Cannot find server!\n\n" +
+                                    "Check:\n" +
+                                    "1. Device on same WiFi\n" +
+                                    "2. Computer IP: 10.148.199.69\n" +
+                                    "3. Test URL in browser first"
+                                }
+                                t.message?.contains("Connection refused", ignoreCase = true) == true -> {
+                                    "🚫 Connection refused!\n\n" +
+                                    "XAMPP Apache is NOT running!\n" +
+                                    "Start Apache in XAMPP Control Panel."
+                                }
+                                else -> {
+                                    "❌ Connection Error\n\n" +
+                                    "Error: ${t.message}\n\n" +
+                                    "Quick Fix:\n" +
+                                    "1. Start XAMPP Apache\n" +
+                                    "2. Same WiFi network\n" +
+                                    "3. Test in browser first"
+                                }
+                            }
+                            
+                            Toast.makeText(
+                                context,
+                                errorMessage,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    })
             },
             modifier = Modifier
                 .fillMaxWidth()

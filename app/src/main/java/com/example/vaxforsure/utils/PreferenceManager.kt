@@ -13,6 +13,7 @@ object PreferenceManager {
     private const val KEY_EMAIL_VERIFIED = "email_verified"
     private const val KEY_OTP_EMAIL = "otp_email"
     private const val KEY_OTP_CODE = "otp_code"
+    private const val KEY_OTP_TYPE = "otp_type" // "registration" or "password_reset"
     
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -72,10 +73,11 @@ object PreferenceManager {
     }
     
     // OTP Management
-    fun saveOtpData(context: Context, email: String, otpCode: String) {
+    fun saveOtpData(context: Context, email: String, otpCode: String, otpType: String = "registration") {
         getPrefs(context).edit().apply {
             putString(KEY_OTP_EMAIL, email)
             putString(KEY_OTP_CODE, otpCode)
+            putString(KEY_OTP_TYPE, otpType)
             apply()
         }
     }
@@ -88,10 +90,15 @@ object PreferenceManager {
         return getPrefs(context).getString(KEY_OTP_CODE, "") ?: ""
     }
     
+    fun getOtpType(context: Context): String {
+        return getPrefs(context).getString(KEY_OTP_TYPE, "registration") ?: "registration"
+    }
+    
     fun clearOtpData(context: Context) {
         getPrefs(context).edit().apply {
             remove(KEY_OTP_EMAIL)
             remove(KEY_OTP_CODE)
+            remove(KEY_OTP_TYPE)
             apply()
         }
     }

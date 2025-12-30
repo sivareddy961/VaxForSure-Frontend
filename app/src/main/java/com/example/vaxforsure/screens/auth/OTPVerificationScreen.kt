@@ -34,7 +34,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 @Composable
 fun OTPVerificationScreen(
     onBack: () -> Unit,
-    onVerified: () -> Unit
+    onVerified: () -> Unit,
+    onPasswordResetVerified: () -> Unit = onVerified
 ) {
     val context = LocalContext.current
     val otpLength = 6
@@ -46,8 +47,9 @@ fun OTPVerificationScreen(
 
     val scope = rememberCoroutineScope()
     
-    // Get saved OTP email
+    // Get saved OTP email and type
     val otpEmail = remember { PreferenceManager.getOtpEmail(context) }
+    val otpType = remember { PreferenceManager.getOtpType(context) }
 
     /* Timer */
     LaunchedEffect(timer) {
@@ -76,7 +78,13 @@ fun OTPVerificationScreen(
             if (otpCode == savedOtp) {
                 PreferenceManager.clearOtpData(context)
                 Toast.makeText(context, "OTP verified successfully!", Toast.LENGTH_SHORT).show()
-                onVerified()
+                
+                // Navigate based on OTP type
+                if (otpType == "password_reset") {
+                    onPasswordResetVerified()
+                } else {
+                    onVerified()
+                }
             } else {
                 Toast.makeText(context, "Invalid OTP", Toast.LENGTH_SHORT).show()
             }
