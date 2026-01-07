@@ -20,6 +20,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.vaxforsure.utils.VaccineManager
+import com.example.vaxforsure.utils.ChildManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.remember
 
 /* =========================================================
    Vaccine Data Model
@@ -693,11 +697,29 @@ val vaccineData = mapOf(
 @Composable
 fun VaccineDetailsScreen(
     navController: NavController? = null,
-    vaccineName: String? = null
+    vaccineName: String? = null,
+    childId: Int = 0
 ) {
     // Get vaccine name from navigation arguments or use default
     val currentVaccineName = vaccineName ?: "BCG"
     val vaccineInfo = vaccineData[currentVaccineName] ?: vaccineData["BCG"]!!
+    
+    // Load completion details if childId is provided
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val completionDetails = remember(childId, currentVaccineName) {
+        if (childId > 0) {
+            com.example.vaxforsure.utils.VaccineManager.getVaccineStatus(context, childId, currentVaccineName)
+        } else {
+            null
+        }
+    }
+    val child = remember(childId) {
+        if (childId > 0) {
+            com.example.vaxforsure.utils.ChildManager.getChildById(context, childId)
+        } else {
+            null
+        }
+    }
     Scaffold(
         containerColor = Color(0xFFF5FAFA)
     ) { padding ->
@@ -805,25 +827,36 @@ fun VaccineDetailsScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
+                    /* ---------------- Completion Details Card (if completed) ---------------- */
+                    if (completionDetails != null && completionDetails.status == "completed") {
+                        CompletionDetailsCard(
+                            childName = child?.name ?: "Child",
+                            completionDetails = completionDetails
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
                     /* ---------------- Mark as Completed Button ---------------- */
-                    Button(
-                        onClick = {
-                            navController?.navigate("${com.example.vaxforsure.navigation.Destinations.MARK_AS_COMPLETED}/$currentVaccineName")
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(26.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF00BFA5)
-                        )
-                    ) {
-                        Text(
-                            text = "Mark as Completed",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
-                        )
+                    if (completionDetails == null || completionDetails.status != "completed") {
+                        Button(
+                            onClick = {
+                                navController?.navigate("${com.example.vaxforsure.navigation.Destinations.MARK_AS_COMPLETED}/$currentVaccineName")
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(26.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF00BFA5)
+                            )
+                        ) {
+                            Text(
+                                text = "Mark as Completed",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        }
                     }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -999,5 +1032,114 @@ fun TagChip(
             color = Color.White,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+/* =========================================================
+   Completion Details Card
+   ========================================================= */
+@Composable
+fun CompletionDetailsCard(
+    childName: String,
+    completionDetails: com.example.vaxforsure.utils.VaccineStatus
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFE0F2F1)
+        ),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = Color(0xFF00BFA5),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Completed for $childName",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00BFA5)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            InfoRow(
+                icon = Icons.Default.CalendarToday,
+                label = "Date Administered",
+                value = completionDetails.dateAdministered.ifEmpty { "Not specified" }
+            )
+            
+            if (completionDetails.healthcareFacility.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                InfoRow(
+                    icon = Icons.Default.LocationOn,
+                    label = "Healthcare Facility",
+                    value = completionDetails.healthcareFacility
+                )
+            }
+            
+            if (completionDetails.batchLotNumber.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                InfoRow(
+                    icon = Icons.Default.Description,
+                    label = "Batch/Lot Number",
+                    value = completionDetails.batchLotNumber
+                )
+            }
+            
+            if (completionDetails.notes.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                InfoRow(
+                    icon = Icons.Default.Note,
+                    label = "Notes",
+                    value = completionDetails.notes
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun InfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = Color(0xFF757575)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = Color(0xFF757575),
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = value,
+                fontSize = 14.sp,
+                color = Color(0xFF212121),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }

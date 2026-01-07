@@ -35,6 +35,7 @@ object Destinations {
     const val PROFILE_CONFIRMATION = "profile-confirmation"
     const val FORGOT_PASSWORD = "forgot-password"
     const val RESET_CONFIRMATION = "reset-confirmation"
+    const val RESET_PASSWORD = "reset-password"
     const val DASHBOARD = "dashboard"
     const val NOTIFICATIONS = "notifications"
     const val VACCINE_SCHEDULE = "vaccine-schedule"
@@ -104,7 +105,7 @@ fun AppNavHost() {
             OTPVerificationScreen(
                 onBack = { navController.popBackStack() },
                 onVerified = { navController.navigate(Destinations.ADD_CHILD) },
-                onPasswordResetVerified = { navController.navigate(Destinations.LOGIN) }
+                onPasswordResetVerified = { navController.navigate(Destinations.RESET_PASSWORD) }
             )
         }
 
@@ -152,6 +153,17 @@ fun AppNavHost() {
             )
         }
 
+        composable(Destinations.RESET_PASSWORD) {
+            ResetPasswordScreen(
+                onBack = { navController.popBackStack() },
+                onPasswordReset = {
+                    navController.navigate(Destinations.LOGIN) {
+                        popUpTo(Destinations.FORGOT_PASSWORD) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         /* ---------------- DASHBOARD ---------------- */
         composable(Destinations.DASHBOARD) {
             DashboardScreen(
@@ -172,8 +184,17 @@ fun AppNavHost() {
         }
 
         /* ---------------- EDIT PROFILE ---------------- */
-        composable(Destinations.EDIT_PROFILE) {
-            EditProfileScreen(navController = navController)
+        composable(
+            route = "${Destinations.EDIT_PROFILE}/{childId}",
+            arguments = listOf(
+                navArgument("childId") {
+                    type = NavType.IntType
+                    defaultValue = 0
+                }
+            )
+        ) { backStackEntry ->
+            val childId = backStackEntry.arguments?.getInt("childId") ?: 0
+            EditProfileScreen(navController = navController, childId = childId)
         }
 
         /* ---------------- VACCINE DETAILS ---------------- */
@@ -187,9 +208,12 @@ fun AppNavHost() {
             )
         ) { backStackEntry ->
             val vaccineName = backStackEntry.arguments?.getString("vaccineName") ?: "BCG"
+            // Get childId from savedStateHandle if coming from records
+            val childId = backStackEntry.savedStateHandle.get<Int>("childId") ?: 0
             VaccineDetailsScreen(
                 navController = navController,
-                vaccineName = vaccineName
+                vaccineName = vaccineName,
+                childId = childId
             )
         }
         composable(Destinations.VACCINE_DETAILS) {

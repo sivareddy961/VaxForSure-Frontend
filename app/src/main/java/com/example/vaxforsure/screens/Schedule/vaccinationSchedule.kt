@@ -21,6 +21,9 @@ import androidx.navigation.NavController
 import com.example.vaxforsure.navigation.Destinations
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
+import com.example.vaxforsure.utils.VaccineManager
+import com.example.vaxforsure.utils.ChildManager
+import com.example.vaxforsure.utils.PreferenceManager
 
 /* =========================================================
    DATA MODELS
@@ -124,13 +127,40 @@ fun VaccinationScheduleScreen(
     var selectedAgeGroup by remember { mutableStateOf("birth") }
     val filteredVaccines = vaccines.filter { it.ageGroupId == selectedAgeGroup }
     
-    // Load child name from SharedPreferences if not provided
-    val displayChildName = remember(childName) {
+    // Get childId from savedStateHandle (passed from dashboard)
+    // Try multiple ways to get childId
+    val childId = remember {
+        var id = navController.currentBackStackEntry?.savedStateHandle?.get<Int>("childId") ?: 0
+        if (id == 0) {
+            id = navController.previousBackStackEntry?.savedStateHandle?.get<Int>("childId") ?: 0
+        }
+        // If still 0, try to get from children list (first child as fallback)
+        if (id == 0) {
+            val userId = PreferenceManager.getUserId(context)
+            val children = ChildManager.getAllChildren(context, userId)
+            id = children.firstOrNull()?.id ?: 0
+        }
+        id
+    }
+    
+    // Get child name from savedStateHandle or parameter
+    val displayChildName = remember(childName, childId) {
         if (childName != null) {
             childName
+        } else if (childId > 0) {
+            ChildManager.getChildById(context, childId)?.name ?: "Child"
         } else {
             val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
             pref.getString("name", "Child") ?: "Child"
+        }
+    }
+    
+    // Get child object for display
+    val child = remember(childId) {
+        if (childId > 0) {
+            ChildManager.getChildById(context, childId)
+        } else {
+            null
         }
     }
 
@@ -242,7 +272,7 @@ fun VaccinationScheduleScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(filteredVaccines) { vaccine ->
-                VaccineCard(vaccine, navController)
+                VaccineCard(vaccine, navController, childId)
             }
         }
     }
@@ -252,8 +282,21 @@ fun VaccinationScheduleScreen(
    VACCINE CARD
    ========================================================= */
 @Composable
-fun VaccineCard(vaccine: Vaccine, navController: NavController) {
-    val status = VaccineStatus.PENDING
+fun VaccineCard(vaccine: Vaccine, navController: NavController, childId: Int = 0) {
+    val context = LocalContext.current
+    
+    // Check if this vaccine is completed for the specific child
+    val status = remember(vaccine.name, childId) {
+        if (childId > 0) {
+            if (VaccineManager.isVaccineCompleted(context, childId, vaccine.name)) {
+                VaccineStatus.COMPLETED
+            } else {
+                VaccineStatus.PENDING
+            }
+        } else {
+            VaccineStatus.PENDING
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -401,15 +444,16 @@ fun VaccineCard(vaccine: Vaccine, navController: NavController) {
                     Box(
                         modifier = Modifier
                             .background(
-                                Color(0xFFFFF3E0),
+                                if (status == VaccineStatus.COMPLETED) Color(0xFFE0F2F1) else Color(0xFFFFF3E0),
                                 RoundedCornerShape(50)
                             )
                             .padding(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            status.name.lowercase(),
+                            if (status == VaccineStatus.COMPLETED) "Completed" else "Pending",
                             fontSize = 11.sp,
-                            color = Color(0xFFFFA000)
+                            color = if (status == VaccineStatus.COMPLETED) Color(0xFF00BFA5) else Color(0xFFFFA000),
+                            fontWeight = FontWeight.Medium
                         )
                     }
                     Text(

@@ -24,14 +24,19 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vaxforsure.utils.PreferenceManager
+import com.example.vaxforsure.utils.GoogleSignInHelper
 import com.example.vaxforsure.api.RetrofitClient
 import com.example.vaxforsure.models.LoginRequest
+import com.example.vaxforsure.models.GoogleLoginRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 
 @Composable
 fun LoginScreen(
@@ -46,7 +51,85 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var isGoogleLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    
+    // Google Sign-In launcher
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val account = GoogleSignInHelper.getAccountFromIntent(result.data)
+        
+        if (account != null) {
+            // User signed in with Google
+            isGoogleLoading = true
+            
+            // Create Google login request
+            val googleLoginRequest = GoogleLoginRequest(
+                googleId = account.id ?: "",
+                email = account.email ?: "",
+                fullName = account.displayName ?: "User",
+                photoUrl = account.photoUrl?.toString(),
+                phone = null
+            )
+            
+            // Call Google login API
+            RetrofitClient.apiService.googleLogin(googleLoginRequest)
+                .enqueue(object : Callback<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>> {
+                    override fun onResponse(
+                        call: Call<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>>,
+                        response: Response<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>>
+                    ) {
+                        isGoogleLoading = false
+                        
+                        if (response.isSuccessful && response.body() != null) {
+                            val apiResponse = response.body()!!
+                            
+                            if (apiResponse.success && apiResponse.data != null) {
+                                val user = apiResponse.data.user
+                                
+                                // Save user session locally
+                                PreferenceManager.saveUserSession(
+                                    context,
+                                    user.id,
+                                    user.fullName,
+                                    user.email,
+                                    user.phone,
+                                    "",
+                                    user.emailVerified
+                                )
+                                
+                                Toast.makeText(context, "Google login successful!", Toast.LENGTH_SHORT).show()
+                                onLogin()
+                            } else {
+                                Toast.makeText(context, apiResponse.message, Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            val errorMessage = try {
+                                response.errorBody()?.string() ?: "Google login failed. Please try again."
+                            } catch (e: Exception) {
+                                "Google login failed. Please try again."
+                            }
+                            Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    override fun onFailure(
+                        call: Call<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AuthResponse>>,
+                        t: Throwable
+                    ) {
+                        isGoogleLoading = false
+                        Toast.makeText(
+                            context,
+                            "Google login failed: ${t.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                })
+        } else {
+            Toast.makeText(context, "Google sign-in cancelled or failed", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -273,14 +356,29 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         OutlinedButton(
-            onClick = onGoogleLogin,
+            onClick = {
+                try {
+                    val signInIntent = GoogleSignInHelper.getSignInIntent(context)
+                    googleSignInLauncher.launch(signInIntent)
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Google Sign-In error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            },
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, Color(0xFFE0E0E0))
+            border = BorderStroke(1.dp, Color(0xFFE0E0E0)),
+            enabled = !isGoogleLoading
         ) {
-            Icon(Icons.Filled.AccountCircle, null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Continue with Google")
+            if (isGoogleLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color(0xFF4DB6AC)
+                )
+            } else {
+                Icon(Icons.Filled.AccountCircle, null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Continue with Google")
+            }
         }
 
         Spacer(modifier = Modifier.height(32.dp))

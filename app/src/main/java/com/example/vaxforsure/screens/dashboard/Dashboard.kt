@@ -19,6 +19,9 @@ import androidx.navigation.NavController
 import com.example.vaxforsure.navigation.Destinations
 import androidx.compose.ui.platform.LocalContext
 import com.example.vaxforsure.utils.PreferenceManager
+import com.example.vaxforsure.utils.ChildManager
+import com.example.vaxforsure.utils.VaccineManager
+import com.example.vaxforsure.screens.profile.Child
 import androidx.compose.runtime.*
 import com.example.vaxforsure.screens.vaccinedetails.vaccineData
 import java.text.SimpleDateFormat
@@ -64,9 +67,10 @@ fun DashboardScreen(
             
             item { Spacer(Modifier.height(24.dp)) }
 
+            // Children and Their Vaccines Section
             item {
                 SectionHeader(
-                    title = "Upcoming Vaccines",
+                    title = "Children & Vaccines",
                     action = "View All",
                     onActionClick = {
                         navController.navigate(Destinations.UPCOMING_VACCINES)
@@ -74,7 +78,7 @@ fun DashboardScreen(
                 )
             }
 
-            item { UpcomingVaccinesRow(navController) }
+            item { ChildrenVaccinesSection(navController) }
 
             item {
                 Spacer(Modifier.height(24.dp))
@@ -201,7 +205,263 @@ fun DashboardHeader(
 }
 
 /* =========================================================
-   UPCOMING VACCINES
+   CHILDREN & VACCINES SECTION
+   ========================================================= */
+@Composable
+fun ChildrenVaccinesSection(navController: NavController) {
+    val context = LocalContext.current
+    var children by remember { mutableStateOf<List<Child>>(emptyList()) }
+    var expandedChildId by remember { mutableStateOf<Int?>(null) }
+    
+    val userId = remember { PreferenceManager.getUserId(context) }
+    
+    LaunchedEffect(Unit) {
+        children = ChildManager.getAllChildren(context, userId)
+        // Auto-expand first child if available
+        if (children.isNotEmpty() && expandedChildId == null) {
+            expandedChildId = children.first().id
+        }
+    }
+    
+    if (children.isEmpty()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    tint = Color(0xFF00BFA5),
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "No children added yet",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Add a child profile to start tracking vaccines",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            children.forEach { child ->
+                ChildVaccineCard(
+                    child = child,
+                    isExpanded = expandedChildId == child.id,
+                    onExpandedChange = { 
+                        expandedChildId = if (expandedChildId == child.id) null else child.id 
+                    },
+                    navController = navController
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ChildVaccineCard(
+    child: Child,
+    isExpanded: Boolean,
+    onExpandedChange: () -> Unit,
+    navController: NavController
+) {
+    val context = LocalContext.current
+    
+    // Get upcoming vaccines for this child
+    val upcomingVaccines = remember(child.id) {
+        val allVaccines = scheduleData.flatMap { it.items }
+        VaccineManager.getPendingVaccines(context, child.id, allVaccines)
+            .take(5) // Show top 5 pending vaccines
+    }
+    
+    // Get completed vaccines count
+    val completedCount = remember(child.id) {
+        VaccineManager.getCompletedVaccines(context, child.id).size
+    }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onExpandedChange() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Child Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Child Avatar
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(Color(0xFFE0F2F1), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = child.name.firstOrNull()?.toString() ?: "C",
+                            color = Color(0xFF00BFA5),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                    }
+                    
+                    Spacer(Modifier.width(12.dp))
+                    
+                    Column {
+                        Text(
+                            text = child.name,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = "${completedCount} completed • ${upcomingVaccines.size} pending",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+                
+                Icon(
+                    if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = Color(0xFF00BFA5)
+                )
+            }
+            
+            // Expanded Content - Show Vaccines
+            if (isExpanded) {
+                Spacer(Modifier.height(16.dp))
+                
+                Divider(color = Color(0xFFE0E0E0))
+                
+                Spacer(Modifier.height(12.dp))
+                
+                // Upcoming Vaccines
+                if (upcomingVaccines.isNotEmpty()) {
+                    Text(
+                        "Upcoming Vaccines",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF00897B)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(upcomingVaccines) { vaccineName ->
+                            ChildVaccineChip(
+                                vaccineName = vaccineName,
+                                childId = child.id,
+                                navController = navController
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        "All vaccines completed! 🎉",
+                        fontSize = 14.sp,
+                        color = Color(0xFF00BFA5),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                Spacer(Modifier.height(12.dp))
+                
+                // View Full Schedule Button
+                Button(
+                    onClick = {
+                        // Pass childId to schedule screen
+                        navController.currentBackStackEntry?.savedStateHandle?.set("childId", child.id)
+                        navController.currentBackStackEntry?.savedStateHandle?.set("childName", child.name)
+                        navController.navigate(Destinations.VACCINE_SCHEDULE)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00BFA5)
+                    )
+                ) {
+                    Text("View Full Schedule for ${child.name}")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ChildVaccineChip(
+    vaccineName: String,
+    childId: Int,
+    navController: NavController
+) {
+    val context = LocalContext.current
+    val vaccineStatus = remember(vaccineName, childId) {
+        VaccineManager.getVaccineStatus(context, childId, vaccineName)?.status ?: "pending"
+    }
+    
+    Card(
+        modifier = Modifier
+            .clickable {
+                navController.navigate("${Destinations.VACCINE_DETAILS}/$vaccineName")
+            },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (vaccineStatus == "completed") {
+                Color(0xFFE0F2F1)
+            } else {
+                Color(0xFFFFF3E0)
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconCircle()
+            Spacer(Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = vaccineName,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                StatusBadge(status = vaccineStatus)
+            }
+        }
+    }
+}
+
+/* =========================================================
+   UPCOMING VACCINES (Legacy - kept for backward compatibility)
    ========================================================= */
 @Composable
 fun UpcomingVaccinesRow(navController: NavController) {
@@ -217,7 +477,7 @@ fun UpcomingVaccinesRow(navController: NavController) {
 }
 
 @Composable
-fun UpcomingVaccineCard(name: String, navController: NavController) {
+fun UpcomingVaccineCard(name: String, navController: NavController, childId: Int? = null) {
     Card(
         modifier = Modifier
             .width(280.dp)
@@ -244,12 +504,25 @@ fun UpcomingVaccineCard(name: String, navController: NavController) {
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
+            val context = LocalContext.current
+            val vaccineStatus = remember(name, childId) {
+                if (childId != null) {
+                    VaccineManager.getVaccineStatus(context, childId, name)?.status ?: "pending"
+                } else {
+                    "pending"
+                }
+            }
+            
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconCircle()
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(name, fontWeight = FontWeight.SemiBold)
-                    Text("Pending", fontSize = 12.sp, color = Color(0xFF00796B))
+                    Text(
+                        if (vaccineStatus == "completed") "Completed" else "Pending",
+                        fontSize = 12.sp,
+                        color = if (vaccineStatus == "completed") Color(0xFF00BFA5) else Color(0xFF00796B)
+                    )
                 }
             }
 
@@ -292,14 +565,24 @@ fun AgeGroupCard(group: ScheduleGroup, navController: NavController) {
             Spacer(Modifier.height(12.dp))
 
             group.items.forEach {
-                ScheduleItem(it, navController)
+                ScheduleItem(it, navController, childId = null)
             }
         }
     }
 }
 
 @Composable
-fun ScheduleItem(name: String, navController: NavController) {
+fun ScheduleItem(name: String, navController: NavController, childId: Int? = null) {
+    val context = LocalContext.current
+    
+    // Check if ANY child has completed this vaccine
+    val isCompletedByAnyChild = remember(name) {
+        val children = ChildManager.getAllChildren(context)
+        children.any { child ->
+            VaccineManager.isVaccineCompleted(context, child.id, name)
+        }
+    }
+    
     // Get diseases prevented from vaccineData
     val diseasesPrevented = remember(name) {
         val vaccineName = when (name) {
@@ -399,7 +682,7 @@ fun ScheduleItem(name: String, navController: NavController) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        StatusBadge()
+        StatusBadge(status = if (isCompletedByAnyChild) "completed" else "pending")
     }
 }
 
@@ -424,13 +707,22 @@ fun IconCircle() {
 }
 
 @Composable
-fun StatusBadge() {
+fun StatusBadge(status: String = "pending") {
+    val backgroundColor = if (status == "completed") {
+        Color(0xFF00BFA5)
+    } else {
+        Color(0xFF1E3A3A)
+    }
+    
+    val textColor = Color.White
+    val statusText = if (status == "completed") "Completed" else "Pending"
+    
     Box(
         modifier = Modifier
-            .background(Color(0xFF1E3A3A), RoundedCornerShape(50))
+            .background(backgroundColor, RoundedCornerShape(50))
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
-        Text("Pending", fontSize = 12.sp, color = Color.White)
+        Text(statusText, fontSize = 12.sp, color = textColor)
     }
 }
 

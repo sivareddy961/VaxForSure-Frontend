@@ -24,9 +24,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vaxforsure.utils.PreferenceManager
 import com.example.vaxforsure.utils.ChildManager
+import com.example.vaxforsure.api.RetrofitClient
+import com.example.vaxforsure.models.AddChildRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import com.google.gson.Gson
 
 @Composable
 fun AddChildProfileScreen(
@@ -42,6 +48,7 @@ fun AddChildProfileScreen(
     val scope = rememberCoroutineScope()
     
     val userId = PreferenceManager.getUserId(context)
+    val parentName = PreferenceManager.getUserName(context)
 
     fun saveAndContinue() {
         if (childName.isBlank() || dob.isBlank() || gender.isBlank()) {
@@ -49,8 +56,15 @@ fun AddChildProfileScreen(
             return
         }
         
+        // Check if user is logged in
         if (userId == 0) {
             Toast.makeText(context, "Please login first", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Check if parent name is available
+        if (parentName.isBlank()) {
+            Toast.makeText(context, "Parent name not found. Please login again.", Toast.LENGTH_SHORT).show()
             return
         }
         
@@ -64,30 +78,100 @@ fun AddChildProfileScreen(
             dob
         }
         
-        // Simulate adding child (local only)
-        scope.launch {
-            delay(1000) // Simulate network delay
-            isLoading = false
-            
-            // Generate new child ID
-            val existingChildren = ChildManager.getAllChildren(context)
-            val newChildId = (existingChildren.maxOfOrNull { it.id } ?: 0) + 1
-            
-            // Save to temp SharedPreferences for next screen
-            val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
-            pref.edit()
-                .putString("name", childName)
-                .putString("dob", dob)
-                .putString("gender", gender)
-                .putInt("child_id", newChildId)
-                .remove("birthWeight") // Clear previous health details
-                .remove("birthHeight")
-                .remove("bloodGroup")
-                .apply()
-            
-            Toast.makeText(context, "Child profile added!", Toast.LENGTH_SHORT).show()
-            onNext()
-        }
+        // Normalize gender to lowercase
+        val normalizedGender = gender.lowercase()
+        
+        // Create API request with parent name
+        val addChildRequest = AddChildRequest(
+            userId = userId,
+            parentName = parentName.trim(),
+            name = childName.trim(),
+            dateOfBirth = formattedDob,
+            gender = normalizedGender
+        )
+        
+        // Call backend API
+        RetrofitClient.apiService.addChild(addChildRequest)
+            .enqueue(object : Callback<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AddChildResponse>> {
+                override fun onResponse(
+                    call: Call<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AddChildResponse>>,
+                    response: Response<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AddChildResponse>>
+                ) {
+                    isLoading = false
+                    
+                    if (response.isSuccessful && response.body() != null) {
+                        val apiResponse = response.body()!!
+                        
+                        if (apiResponse.success && apiResponse.data != null) {
+                            val child = apiResponse.data.child
+                            
+                            // Save to temp SharedPreferences for next screen
+                            val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
+                            pref.edit()
+                                .putString("name", child.name)
+                                .putString("dob", dob) // Keep original format for display
+                                .putString("gender", gender)
+                                .putInt("child_id", child.id)
+                                .remove("birthWeight") // Clear previous health details
+                                .remove("birthHeight")
+                                .remove("bloodGroup")
+                                .apply()
+                            
+                            // Also save locally for offline access
+                            // Health details (birth_weight, birth_height, blood_group) will be added separately via update_health_details
+                            val localChild = com.example.vaxforsure.screens.profile.Child(
+                                id = child.id,
+                                user_id = child.userId,
+                                name = child.name,
+                                date_of_birth = child.dateOfBirth,
+                                gender = child.gender,
+                                birth_weight = null, // Will be added via health details update
+                                birth_height = null, // Will be added via health details update
+                                blood_group = null, // Will be added via health details update
+                                created_at = System.currentTimeMillis().toString(),
+                                updated_at = System.currentTimeMillis().toString()
+                            )
+                            ChildManager.saveChild(context, localChild)
+                            
+                            Toast.makeText(context, apiResponse.message ?: "Child profile added!", Toast.LENGTH_SHORT).show()
+                            onNext()
+                        } else {
+                            Toast.makeText(context, apiResponse.message ?: "Failed to add child", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        val errorMessage = try {
+                            val errorBody = response.errorBody()?.string() ?: ""
+                            val jsonError = com.google.gson.Gson().fromJson(errorBody, com.example.vaxforsure.models.ApiResponse::class.java)
+                            jsonError.message.replace(Regex("<[^>]*>"), "").trim()
+                                .ifEmpty { "Failed to add child. Please try again." }
+                        } catch (e: Exception) {
+                            "Failed to add child. Please try again."
+                        }
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                    }
+                }
+                
+                override fun onFailure(
+                    call: Call<com.example.vaxforsure.models.ApiResponse<com.example.vaxforsure.models.AddChildResponse>>,
+                    t: Throwable
+                ) {
+                    isLoading = false
+                    
+                    val errorMessage = when {
+                        t.message?.contains("Failed to connect", ignoreCase = true) == true -> {
+                            "Cannot connect to backend server. Please check XAMPP Apache is running."
+                        }
+                        t.message?.contains("timeout", ignoreCase = true) == true -> {
+                            "Connection timeout. Please check your internet connection."
+                        }
+                        else -> {
+                            "Network error: ${t.message ?: "Unknown error"}"
+                        }
+                    }
+                    
+                    Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                }
+            })
     }
 
     Column(

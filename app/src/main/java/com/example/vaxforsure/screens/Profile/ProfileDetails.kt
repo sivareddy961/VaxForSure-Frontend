@@ -21,7 +21,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,46 +58,26 @@ fun ProfileDetailsScreen(
     var isLoading by remember { mutableStateOf(true) }
     val userId = PreferenceManager.getUserId(context)
 
-    // Function to load children
+    // Function to load children - removes duplicates and fake data
     fun loadChildren() {
-        // Load all children from ChildManager
+        // Load all children from ChildManager (already filtered by user_id and duplicates removed)
         children = ChildManager.getAllChildren(context)
         
-        // If no children found, check temp_child for backward compatibility
-        if (children.isEmpty()) {
-            val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
-            val childName = pref.getString("name", "")
-            val childDob = pref.getString("dob", "")
-            val childGender = pref.getString("gender", "")
-            
-            if (!childName.isNullOrEmpty()) {
-                // Migrate old single child to new system
-                val birthWeight = pref.getString("birthWeight", "")?.toDoubleOrNull()
-                val birthHeight = pref.getString("birthHeight", "")?.toDoubleOrNull()
-                val bloodGroup = pref.getString("bloodGroup", "")
-                
-                val child = Child(
-                    id = 1,
-                    user_id = userId,
-                    name = childName,
-                    date_of_birth = childDob ?: "",
-                    gender = childGender ?: "",
-                    birth_weight = birthWeight,
-                    birth_height = birthHeight,
-                    blood_group = bloodGroup?.takeIf { it.isNotEmpty() },
-                    created_at = System.currentTimeMillis().toString(),
-                    updated_at = System.currentTimeMillis().toString()
-                )
-                
-                ChildManager.saveChild(context, child)
-                children = listOf(child)
-            }
+        // Additional cleanup: ensure only valid children for current user
+        children = children.filter { child ->
+            child.user_id == userId && 
+            child.user_id > 0 &&
+            child.name.isNotBlank() && 
+            child.date_of_birth.isNotBlank()
         }
     }
 
-    // Reload children whenever screen is displayed
+    // Reload children whenever screen is displayed and clean duplicates
     LaunchedEffect(Unit) {
         delay(500) // Simulate loading
+        // Clean duplicates first
+        ChildManager.removeDuplicates(context)
+        // Then load children
         loadChildren()
         isLoading = false
     }
@@ -103,21 +86,35 @@ fun ProfileDetailsScreen(
     val cardBorderColor = Color(0xFFD6EAEA)
     val primaryGreen = Color(0xFF4DB6AC)
 
+    // Get parent/user name
+    val parentName = PreferenceManager.getUserName(context).ifEmpty { "Parent" }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "Children Profiles",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Column {
+                        Text(
+                            text = parentName,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Children Profiles",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = { 
+                        navController?.popBackStack()
+                    }) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = "Back",
+                            tint = Color.White
                         )
                     }
                 },
@@ -128,10 +125,13 @@ fun ProfileDetailsScreen(
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Add Child",
-                            tint = primaryGreen
+                            tint = Color.White
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = primaryGreen
+                )
             )
         }
     ) { padding ->
@@ -172,17 +172,85 @@ fun ProfileDetailsScreen(
                     }
                 }
             } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(children) { child ->
-                        ChildProfileCard(
-                            name = child.name,
-                            age = child.date_of_birth,
-                            gender = child.gender,
-                            navController = navController,
-                            childId = child.id
-                        )
+                Column {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(children) { child ->
+                            ChildProfileCard(
+                                name = child.name,
+                                age = child.date_of_birth,
+                                gender = child.gender,
+                                navController = navController,
+                                childId = child.id
+                            )
+                        }
+                    }
+                    
+                    // Logout Button at Bottom
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                PreferenceManager.clearSession(context)
+                                navController?.navigate(com.example.vaxforsure.navigation.Destinations.LOGIN) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White
+                        ),
+                        elevation = CardDefaults.cardElevation(4.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE0F2F1))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color(0xFF00BFA5),
+                                            Color(0xFF00897B)
+                                        )
+                                    )
+                                )
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(
+                                            Color.White.copy(alpha = 0.2f),
+                                            CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ExitToApp,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Logout",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -277,7 +345,7 @@ fun ChildProfileCard(
 
                 // Edit icon
                 IconButton(onClick = {
-                    navController?.navigate("${com.example.vaxforsure.navigation.Destinations.EDIT_PROFILE}/$name")
+                    navController?.navigate("${com.example.vaxforsure.navigation.Destinations.EDIT_PROFILE}/$childId")
                 }) {
                     Icon(
                         imageVector = Icons.Default.Edit,
@@ -292,7 +360,7 @@ fun ChildProfileCard(
             // View Profile Button
             Button(
                 onClick = { 
-                    navController?.navigate(com.example.vaxforsure.navigation.Destinations.EDIT_PROFILE)
+                    navController?.navigate("${com.example.vaxforsure.navigation.Destinations.EDIT_PROFILE}/$childId")
                 },
                 modifier = Modifier
                     .fillMaxWidth()

@@ -1,6 +1,8 @@
 package com.example.vaxforsure.api
 
 import com.example.vaxforsure.utils.ApiConstants
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -38,10 +40,15 @@ object RetrofitClient {
                 "${ApiConstants.BASE_URL}/"
             }
             
+            // Create Gson with lenient mode to handle minor JSON formatting issues
+            val gson = GsonBuilder()
+                .setLenient()
+                .create()
+            
             retrofitInstance = Retrofit.Builder()
                 .baseUrl(baseUrl)
                 .client(okHttpClient)
-                .addConverterFactory(GsonConverterFactory.create())
+                .addConverterFactory(GsonConverterFactory.create(gson))
                 .build()
         }
         return retrofitInstance!!

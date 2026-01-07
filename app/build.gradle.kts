@@ -52,6 +52,9 @@ dependencies {
     
     // Gson for JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")
+    
+    // Google Sign-In
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

@@ -27,9 +27,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vaxforsure.utils.PreferenceManager
+import com.example.vaxforsure.api.RetrofitClient
+import com.example.vaxforsure.models.VerifyOtpRequest
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun OTPVerificationScreen(
@@ -58,6 +63,41 @@ fun OTPVerificationScreen(
             timer--
         }
     }
+    
+    fun handleResendOtp() {
+        if (otpEmail.isEmpty()) {
+            Toast.makeText(context, "Email not found. Please start over.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        scope.launch {
+            // Resend OTP via backend
+            val forgotPasswordRequest = com.example.vaxforsure.models.ForgotPasswordRequest(otpEmail)
+            RetrofitClient.apiService.forgotPassword(forgotPasswordRequest)
+                .enqueue(object : Callback<com.example.vaxforsure.models.ApiResponse<Any>> {
+                    override fun onResponse(
+                        call: Call<com.example.vaxforsure.models.ApiResponse<Any>>,
+                        response: Response<com.example.vaxforsure.models.ApiResponse<Any>>
+                    ) {
+                        if (response.isSuccessful && response.body()?.success == true) {
+                            Toast.makeText(context, "Verification code sent again!", Toast.LENGTH_SHORT).show()
+                            for (i in 0 until otpLength) otp[i] = ""
+                            timer = 60
+                            focusRequesters[0].requestFocus()
+                        } else {
+                            Toast.makeText(context, "Failed to resend code", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    override fun onFailure(
+                        call: Call<com.example.vaxforsure.models.ApiResponse<Any>>,
+                        t: Throwable
+                    ) {
+                        Toast.makeText(context, "Network error", Toast.LENGTH_SHORT).show()
+                    }
+                })
+        }
+    }
 
     fun handleVerify() {
         val otpCode = otp.joinToString("")
@@ -66,38 +106,76 @@ fun OTPVerificationScreen(
             return
         }
         
+        if (otpEmail.isEmpty()) {
+            Toast.makeText(context, "Email not found. Please start over.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         isVerifying = true
         
-        // Simulate OTP verification (local only)
-        scope.launch {
-            delay(1000) // Simulate network delay
-            
-            // Get saved OTP from SharedPreferences
-            val savedOtp = PreferenceManager.getOtpCode(context)
-            
-            if (otpCode == savedOtp) {
-                PreferenceManager.clearOtpData(context)
-                Toast.makeText(context, "OTP verified successfully!", Toast.LENGTH_SHORT).show()
-                
-                // Navigate based on OTP type
-                if (otpType == "password_reset") {
-                    onPasswordResetVerified()
-                } else {
-                    onVerified()
+        // Call backend API to verify OTP
+        val verifyOtpRequest = VerifyOtpRequest(
+            email = otpEmail,
+            otp = otpCode
+        )
+        
+        RetrofitClient.apiService.verifyOtp(verifyOtpRequest)
+            .enqueue(object : Callback<com.example.vaxforsure.models.ApiResponse<Any>> {
+                override fun onResponse(
+                    call: Call<com.example.vaxforsure.models.ApiResponse<Any>>,
+                    response: Response<com.example.vaxforsure.models.ApiResponse<Any>>
+                ) {
+                    isVerifying = false
+                    
+                    if (response.isSuccessful && response.body() != null) {
+                        val apiResponse = response.body()!!
+                        
+                        if (apiResponse.success) {
+                            Toast.makeText(context, "OTP verified successfully!", Toast.LENGTH_SHORT).show()
+                            
+                            // Navigate based on OTP type
+                            if (otpType == "password_reset") {
+                                // Save OTP for reset password screen
+                                PreferenceManager.saveOtpData(context, otpEmail, otpCode, "password_reset")
+                                onPasswordResetVerified()
+                            } else {
+                                PreferenceManager.clearOtpData(context)
+                                onVerified()
+                            }
+                        } else {
+                            Toast.makeText(
+                                context,
+                                apiResponse.message ?: "Invalid OTP",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        val errorMessage = try {
+                            val errorBody = response.errorBody()?.string() ?: ""
+                            val jsonError = com.google.gson.Gson().fromJson(errorBody, com.example.vaxforsure.models.ApiResponse::class.java)
+                            jsonError.message.replace(Regex("<[^>]*>"), "").trim()
+                                .ifEmpty { "Invalid OTP. Please try again." }
+                        } catch (e: Exception) {
+                            "Failed to verify OTP. Please check your internet connection."
+                        }
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                    }
                 }
-            } else {
-                Toast.makeText(context, "Invalid OTP", Toast.LENGTH_SHORT).show()
-            }
-            
-            isVerifying = false
-        }
+                
+                override fun onFailure(
+                    call: Call<com.example.vaxforsure.models.ApiResponse<Any>>,
+                    t: Throwable
+                ) {
+                    isVerifying = false
+                    Toast.makeText(
+                        context,
+                        "Network error: ${t.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            })
     }
 
-    fun handleResend() {
-        for (i in 0 until otpLength) otp[i] = ""
-        timer = 60
-        focusRequesters[0].requestFocus()
-    }
 
     Column(
         modifier = Modifier
@@ -223,7 +301,7 @@ fun OTPVerificationScreen(
                 Text(
                     text = "Resend Code",
                     color = Color(0xFF4DB6AC),
-                    modifier = Modifier.clickable { handleResend() }
+                    modifier = Modifier.clickable { handleResendOtp() }
                 )
             }
 

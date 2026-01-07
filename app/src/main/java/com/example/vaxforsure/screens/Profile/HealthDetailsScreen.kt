@@ -22,6 +22,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.example.vaxforsure.utils.ChildManager
 import com.example.vaxforsure.screens.profile.Child
 import com.example.vaxforsure.utils.PreferenceManager
+import com.example.vaxforsure.api.RetrofitClient
+import com.example.vaxforsure.models.UpdateHealthDetailsRequest
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -227,49 +232,109 @@ fun HealthDetailsScreen(
                     
                     isLoading = true
                     
-                    // Simulate saving health details (local only)
-                    scope.launch {
-                        delay(1000) // Simulate network delay
+                    // Get child data from temp SharedPreferences
+                    val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
+                    val childId = pref.getInt("child_id", 0)
+                    
+                    if (childId <= 0) {
                         isLoading = false
-                        
-                        // Get child data from temp SharedPreferences
-                        val pref = context.getSharedPreferences("temp_child", Context.MODE_PRIVATE)
-                        val childName = pref.getString("name", "") ?: ""
-                        val childDob = pref.getString("dob", "") ?: ""
-                        val childGender = pref.getString("gender", "") ?: ""
-                        val userId = PreferenceManager.getUserId(context)
-                        
-                        // Save health details to temp SharedPreferences
-                        pref.edit()
-                            .putString("birthWeight", weight)
-                            .putString("birthHeight", height)
-                            .putString("bloodGroup", bloodGroup)
-                            .apply()
-                        
-                        // Save complete child to children list
-                        if (childName.isNotEmpty()) {
-                            val birthWeightDouble = weight.toDoubleOrNull()
-                            val birthHeightDouble = height.toDoubleOrNull()
-                            
-                            val child = Child(
-                                id = pref.getInt("child_id", 0).takeIf { it > 0 } ?: (ChildManager.getAllChildren(context).maxOfOrNull { it.id } ?: 0) + 1,
-                                user_id = userId,
-                                name = childName,
-                                date_of_birth = childDob,
-                                gender = childGender,
-                                birth_weight = birthWeightDouble,
-                                birth_height = birthHeightDouble,
-                                blood_group = bloodGroup.takeIf { it.isNotEmpty() },
-                                created_at = System.currentTimeMillis().toString(),
-                                updated_at = System.currentTimeMillis().toString()
-                            )
-                            
-                            ChildManager.saveChild(context, child)
-                        }
-                        
-                        Toast.makeText(context, "Health details saved!", Toast.LENGTH_SHORT).show()
-                        onSubmit()
+                        Toast.makeText(context, "Child information missing", Toast.LENGTH_SHORT).show()
+                        return@Button
                     }
+                    
+                    val birthWeightDouble = weight.toDoubleOrNull()
+                    val birthHeightDouble = height.toDoubleOrNull()
+                    
+                    // Create API request
+                    val updateHealthRequest = UpdateHealthDetailsRequest(
+                        childId = childId,
+                        birthWeight = birthWeightDouble,
+                        birthHeight = birthHeightDouble,
+                        bloodGroup = bloodGroup.takeIf { it.isNotEmpty() }
+                    )
+                    
+                    // Call backend API
+                    RetrofitClient.apiService.updateHealthDetails(updateHealthRequest)
+                        .enqueue(object : Callback<com.example.vaxforsure.models.ApiResponse<Any>> {
+                            override fun onResponse(
+                                call: Call<com.example.vaxforsure.models.ApiResponse<Any>>,
+                                response: Response<com.example.vaxforsure.models.ApiResponse<Any>>
+                            ) {
+                                isLoading = false
+                                
+                                if (response.isSuccessful && response.body() != null) {
+                                    val apiResponse = response.body()!!
+                                    
+                                    if (apiResponse.success) {
+                                        // Save health details to temp SharedPreferences
+                                        pref.edit()
+                                            .putString("birthWeight", weight)
+                                            .putString("birthHeight", height)
+                                            .putString("bloodGroup", bloodGroup)
+                                            .apply()
+                                        
+                                        // Update local child data
+                                        val childName = pref.getString("name", "") ?: ""
+                                        val childDob = pref.getString("dob", "") ?: ""
+                                        val childGender = pref.getString("gender", "") ?: ""
+                                        val userId = PreferenceManager.getUserId(context)
+                                        
+                                        if (childName.isNotEmpty()) {
+                                            val child = Child(
+                                                id = childId,
+                                                user_id = userId,
+                                                name = childName,
+                                                date_of_birth = childDob,
+                                                gender = childGender,
+                                                birth_weight = birthWeightDouble,
+                                                birth_height = birthHeightDouble,
+                                                blood_group = bloodGroup.takeIf { it.isNotEmpty() },
+                                                created_at = System.currentTimeMillis().toString(),
+                                                updated_at = System.currentTimeMillis().toString()
+                                            )
+                                            
+                                            ChildManager.saveChild(context, child)
+                                        }
+                                        
+                                        Toast.makeText(context, apiResponse.message ?: "Health details saved!", Toast.LENGTH_SHORT).show()
+                                        onSubmit()
+                                    } else {
+                                        Toast.makeText(context, apiResponse.message ?: "Failed to save health details", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    val errorMessage = try {
+                                        val errorBody = response.errorBody()?.string() ?: ""
+                                        val jsonError = com.google.gson.Gson().fromJson(errorBody, com.example.vaxforsure.models.ApiResponse::class.java)
+                                        jsonError.message.replace(Regex("<[^>]*>"), "").trim()
+                                            .ifEmpty { "Failed to save health details. Please try again." }
+                                    } catch (e: Exception) {
+                                        "Failed to save health details. Please try again."
+                                    }
+                                    Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            
+                            override fun onFailure(
+                                call: Call<com.example.vaxforsure.models.ApiResponse<Any>>,
+                                t: Throwable
+                            ) {
+                                isLoading = false
+                                
+                                val errorMessage = when {
+                                    t.message?.contains("Failed to connect", ignoreCase = true) == true -> {
+                                        "Cannot connect to backend server. Please check XAMPP Apache is running."
+                                    }
+                                    t.message?.contains("timeout", ignoreCase = true) == true -> {
+                                        "Connection timeout. Please check your internet connection."
+                                    }
+                                    else -> {
+                                        "Network error: ${t.message ?: "Unknown error"}"
+                                    }
+                                }
+                                
+                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                            }
+                        })
                 },
                 modifier = Modifier
                     .fillMaxWidth()

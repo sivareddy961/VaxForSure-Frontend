@@ -21,7 +21,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.widget.Toast
 import com.example.vaxforsure.utils.PreferenceManager
-import kotlinx.coroutines.delay
+import com.example.vaxforsure.api.RetrofitClient
+import com.example.vaxforsure.models.ForgotPasswordRequest
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 import kotlinx.coroutines.launch
 
 @Composable
@@ -40,30 +44,79 @@ fun ForgotPasswordScreen(
             return
         }
         
-        scope.launch {
-            isLoading = true
-            delay(1500) // Simulate network delay
-            
-            // Generate OTP locally
-            val otpCode = (100000..999999).random().toString()
-            
-            // Save OTP data for verification screen (password reset type)
-            PreferenceManager.saveOtpData(
-                context,
-                email.trim(),
-                otpCode,
-                "password_reset"
-            )
-            
-            Toast.makeText(
-                context,
-                "Verification code sent! OTP: $otpCode",
-                Toast.LENGTH_LONG
-            ).show()
-            
-            isLoading = false
-            onResetConfirmation()
-        }
+        isLoading = true
+        
+        // Call backend API to send OTP
+        val forgotPasswordRequest = ForgotPasswordRequest(email.trim())
+        
+        RetrofitClient.apiService.forgotPassword(forgotPasswordRequest)
+            .enqueue(object : Callback<com.example.vaxforsure.models.ApiResponse<Any>> {
+                override fun onResponse(
+                    call: Call<com.example.vaxforsure.models.ApiResponse<Any>>,
+                    response: Response<com.example.vaxforsure.models.ApiResponse<Any>>
+                ) {
+                    isLoading = false
+                    
+                    if (response.isSuccessful && response.body() != null) {
+                        val apiResponse = response.body()!!
+                        
+                        if (apiResponse.success) {
+                            // Save email for OTP verification screen (OTP will come from email)
+                            PreferenceManager.saveOtpData(
+                                context,
+                                email.trim(),
+                                "", // OTP will be entered by user from email
+                                "password_reset"
+                            )
+                            
+                            Toast.makeText(
+                                context,
+                                apiResponse.message ?: "Verification code sent to your email. Please check your inbox.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            
+                            onResetConfirmation()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                apiResponse.message ?: "Failed to send verification code",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        // Better error handling
+                        val errorMessage = try {
+                            val errorBody = response.errorBody()?.string() ?: ""
+                            if (errorBody.isNotEmpty()) {
+                                val jsonError = com.google.gson.Gson().fromJson(errorBody, com.example.vaxforsure.models.ApiResponse::class.java)
+                                jsonError.message.replace(Regex("<[^>]*>"), "").trim()
+                                    .ifEmpty { "Server error (${response.code()}). Please try again." }
+                            } else {
+                                "Server error (${response.code()}). Please check if backend is running."
+                            }
+                        } catch (e: Exception) {
+                            "Network error: ${response.code()}. Check: 1) Backend is running 2) Correct IP address in ApiConstants 3) Internet connection"
+                        }
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                    }
+                }
+                
+                override fun onFailure(
+                    call: Call<com.example.vaxforsure.models.ApiResponse<Any>>,
+                    t: Throwable
+                ) {
+                    isLoading = false
+                    val errorMsg = when {
+                        t.message?.contains("Failed to connect") == true -> 
+                            "Cannot connect to server. Check: 1) XAMPP is running 2) IP address in ApiConstants.kt matches your computer's IP 3) Phone and computer are on same network"
+                        t.message?.contains("timeout") == true -> 
+                            "Connection timeout. Server is slow or unreachable."
+                        else -> 
+                            "Network error: ${t.message}\nCheck ApiConstants.BASE_URL is correct"
+                    }
+                    Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
+                }
+            })
     }
 
     Column(
